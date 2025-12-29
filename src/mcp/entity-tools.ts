@@ -101,7 +101,7 @@ const ODATA_TO_CDS_OPERATORS = new Map<string, string>([
  */
 function isNumericCdsType(cdsType: string): boolean {
   const cdsTypeStr = String(cdsType).toLowerCase();
-  // Match exact type names with word boundaries to avoid false positives
+  // Match exact type names to avoid false positives
   // Support both "Integer" and "cds.Integer" formats
   const numericTypes = [
     "integer",
@@ -111,16 +111,16 @@ function isNumericCdsType(cdsType: string): boolean {
     "decimal",
     "double",
     "number",
+    // Unsigned integer types
+    "uinteger",
+    "uint16",
+    "uint32",
+    "uint64",
   ];
 
   // Check if the type matches any numeric type (exact match or after "cds.")
   return numericTypes.some(
-    (numType) =>
-      cdsTypeStr === numType ||
-      cdsTypeStr === `cds.${numType}` ||
-      // Also handle UInt types
-      cdsTypeStr === `u${numType}` ||
-      cdsTypeStr === `cds.u${numType}`,
+    (numType) => cdsTypeStr === numType || cdsTypeStr === `cds.${numType}`,
   );
 }
 
