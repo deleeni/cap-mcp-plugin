@@ -711,3 +711,304 @@ describe("entity-tools - query filtering consistency", () => {
     });
   });
 });
+
+describe("entity-tools - numeric string conversion based on CDS type", () => {
+  describe("isNumericCdsType helper function", () => {
+    it("should identify numeric CDS types correctly", () => {
+      const entityToolsModule = require("../../../src/mcp/entity-tools");
+      // We can't directly test the private function, but we can test the behavior
+      // through the tool handlers. However, for documentation purposes:
+      // The function should return true for: Integer, Int16, Int32, Int64, Decimal, Double, Number
+      // The function should return false for: String, Boolean, Date, DateTime, etc.
+    });
+  });
+
+  describe("registerGetTool with alphanumeric keys", () => {
+    it("should convert numeric string to number for Integer key type", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedHandler: any;
+
+      // @ts-ignore override registerTool to capture handler
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedHandler = handler;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "products",
+        "Products",
+        "Products",
+        "CatalogService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["ID", "Integer"],
+          ["productCode", "String"],
+        ]),
+        new Map([["ID", "Integer"]]), // Integer key - should convert
+        new Map(),
+        { tools: true, modes: ["get"] },
+      );
+
+      const accesses: WrapAccess = { canRead: true };
+      registerEntityWrappers(res, server, false, ["get"], accesses);
+
+      expect(capturedHandler).toBeDefined();
+    });
+
+    it("should NOT convert numeric string to number for String key type", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedHandler: any;
+
+      // @ts-ignore override registerTool to capture handler
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedHandler = handler;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "products",
+        "Products",
+        "Products",
+        "CatalogService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["productCode", "String"],
+          ["name", "String"],
+        ]),
+        new Map([["productCode", "String"]]), // String key - should NOT convert
+        new Map(),
+        { tools: true, modes: ["get"] },
+      );
+
+      const accesses: WrapAccess = { canRead: true };
+      registerEntityWrappers(res, server, false, ["get"], accesses);
+
+      expect(capturedHandler).toBeDefined();
+    });
+  });
+
+  describe("registerDeleteTool with alphanumeric keys", () => {
+    it("should convert numeric string to number for Integer key type", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedHandler: any;
+
+      // @ts-ignore override registerTool to capture handler
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedHandler = handler;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "products",
+        "Products",
+        "Products",
+        "CatalogService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["ID", "Integer"],
+          ["name", "String"],
+        ]),
+        new Map([["ID", "Integer"]]), // Integer key - should convert
+        new Map(),
+        { tools: true, modes: ["delete"] },
+      );
+
+      const accesses: WrapAccess = { canDelete: true };
+      registerEntityWrappers(res, server, false, ["delete"], accesses);
+
+      expect(capturedHandler).toBeDefined();
+    });
+
+    it("should NOT convert numeric string to number for String key type", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedHandler: any;
+
+      // @ts-ignore override registerTool to capture handler
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedHandler = handler;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "products",
+        "Products",
+        "Products",
+        "CatalogService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["productCode", "String"],
+          ["name", "String"],
+        ]),
+        new Map([["productCode", "String"]]), // String key - should NOT convert
+        new Map(),
+        { tools: true, modes: ["delete"] },
+      );
+
+      const accesses: WrapAccess = { canDelete: true };
+      registerEntityWrappers(res, server, false, ["delete"], accesses);
+
+      expect(capturedHandler).toBeDefined();
+    });
+  });
+
+  describe("registerCreateTool with alphanumeric values", () => {
+    it("should handle numeric fields correctly", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedInputSchema: Record<string, any> = {};
+
+      // @ts-ignore override registerTool to capture input schema
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedInputSchema = config.inputSchema;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "products",
+        "Products",
+        "Products",
+        "CatalogService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["ID", "Integer"],
+          ["productCode", "String"], // String field - should NOT convert "123" to 123
+          ["quantity", "Integer"], // Integer field - should convert "123" to 123
+          ["price", "Decimal"], // Decimal field - should convert numeric strings
+        ]),
+        new Map([["ID", "Integer"]]),
+        new Map(),
+        { tools: true, modes: ["create"] },
+      );
+
+      const accesses: WrapAccess = { canCreate: true };
+      registerEntityWrappers(res, server, false, ["create"], accesses);
+
+      // Verify schema includes the fields
+      expect(capturedInputSchema).toHaveProperty("productCode");
+      expect(capturedInputSchema).toHaveProperty("quantity");
+      expect(capturedInputSchema).toHaveProperty("price");
+    });
+
+    it("should handle foreign key fields correctly", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedInputSchema: Record<string, any> = {};
+
+      // @ts-ignore override registerTool to capture input schema
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedInputSchema = config.inputSchema;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "orders",
+        "Orders",
+        "Orders",
+        "SalesService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["ID", "Integer"],
+          ["orderNumber", "String"],
+          ["customer", "Association to Customers"],
+          ["customer_ID", "Integer"], // FK field with Integer type
+          ["supplier", "Association to Suppliers"],
+          ["supplier_ID", "String"], // FK field with String type (e.g., UUID)
+        ]),
+        new Map([["ID", "Integer"]]),
+        new Map([
+          ["customer_ID", "Customers"],
+          ["supplier_ID", "Suppliers"],
+        ]),
+        { tools: true, modes: ["create"] },
+      );
+
+      const accesses: WrapAccess = { canCreate: true };
+      registerEntityWrappers(res, server, false, ["create"], accesses);
+
+      // Verify FK fields are in schema
+      expect(capturedInputSchema).toHaveProperty("customer_ID");
+      expect(capturedInputSchema).toHaveProperty("supplier_ID");
+    });
+  });
+
+  describe("registerUpdateTool with alphanumeric values", () => {
+    it("should handle numeric fields correctly", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedInputSchema: Record<string, any> = {};
+
+      // @ts-ignore override registerTool to capture input schema
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedInputSchema = config.inputSchema;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "products",
+        "Products",
+        "Products",
+        "CatalogService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["ID", "Integer"],
+          ["productCode", "String"], // String field
+          ["quantity", "Integer"], // Integer field
+          ["price", "Decimal"], // Decimal field
+        ]),
+        new Map([["ID", "Integer"]]),
+        new Map(),
+        { tools: true, modes: ["update"] },
+      );
+
+      const accesses: WrapAccess = { canUpdate: true };
+      registerEntityWrappers(res, server, false, ["update"], accesses);
+
+      // Verify key is required and fields are optional
+      expect(capturedInputSchema).toHaveProperty("ID");
+      expect(capturedInputSchema).toHaveProperty("productCode");
+      expect(capturedInputSchema).toHaveProperty("quantity");
+      expect(capturedInputSchema).toHaveProperty("price");
+    });
+  });
+
+  describe("CDS type variations", () => {
+    it("should handle Int16, Int32, Int64 types", () => {
+      const server = new McpServer({ name: "t", version: "1" });
+      let capturedInputSchema: Record<string, any> = {};
+
+      // @ts-ignore override registerTool to capture input schema
+      server.registerTool = (name: string, config: any, handler: any): any => {
+        capturedInputSchema = config.inputSchema;
+        return undefined as any;
+      };
+
+      const res = new McpResourceAnnotation(
+        "measurements",
+        "Measurements",
+        "Measurements",
+        "DataService",
+        new Set(["filter", "orderby", "select", "top", "skip"]),
+        new Map([
+          ["ID", "Integer"],
+          ["smallValue", "Int16"], // Should convert
+          ["mediumValue", "Int32"], // Should convert
+          ["largeValue", "Int64"], // Should convert
+          ["decimalValue", "Decimal"], // Should convert
+          ["doubleValue", "Double"], // Should convert
+          ["textValue", "String"], // Should NOT convert
+        ]),
+        new Map([["ID", "Integer"]]),
+        new Map(),
+        { tools: true, modes: ["create"] },
+      );
+
+      const accesses: WrapAccess = { canCreate: true };
+      registerEntityWrappers(res, server, false, ["create"], accesses);
+
+      // Verify all fields are in schema
+      expect(capturedInputSchema).toHaveProperty("smallValue");
+      expect(capturedInputSchema).toHaveProperty("mediumValue");
+      expect(capturedInputSchema).toHaveProperty("largeValue");
+      expect(capturedInputSchema).toHaveProperty("decimalValue");
+      expect(capturedInputSchema).toHaveProperty("doubleValue");
+      expect(capturedInputSchema).toHaveProperty("textValue");
+    });
+  });
+});

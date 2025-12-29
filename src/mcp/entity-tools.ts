@@ -94,6 +94,24 @@ const ODATA_TO_CDS_OPERATORS = new Map<string, string>([
 ]);
 
 /**
+ * Checks if a CDS type is numeric.
+ * @param cdsType - The CDS type string
+ * @returns true if the type is numeric, false otherwise
+ */
+function isNumericCdsType(cdsType: string): boolean {
+  const cdsTypeStr = String(cdsType).toLowerCase();
+  return (
+    cdsTypeStr.includes("integer") ||
+    cdsTypeStr.includes("int16") ||
+    cdsTypeStr.includes("int32") ||
+    cdsTypeStr.includes("int64") ||
+    cdsTypeStr.includes("decimal") ||
+    cdsTypeStr.includes("double") ||
+    cdsTypeStr.includes("number")
+  );
+}
+
+/**
  * Builds enhanced query tool description with field types and association examples
  */
 function buildEnhancedQueryDescription(resAnno: McpResourceAnnotation): string {
@@ -437,7 +455,7 @@ function registerGetTool(
     }
 
     const keys: Record<string, unknown> = {};
-    for (const [k] of resAnno.resourceKeys.entries()) {
+    for (const [k, cdsType] of resAnno.resourceKeys.entries()) {
       let provided = (normalizedArgs as any)[k];
       if (provided === undefined) {
         const alt = Object.entries(normalizedArgs || {}).find(
@@ -450,8 +468,16 @@ function registerGetTool(
         return toolError("MISSING_KEY", `Missing key '${k}'`);
       }
       const raw = provided;
-      keys[k] =
-        typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : raw;
+      // Only convert to number if the CDS type is numeric
+      if (
+        isNumericCdsType(cdsType) &&
+        typeof raw === "string" &&
+        /^\d+$/.test(raw)
+      ) {
+        keys[k] = Number(raw);
+      } else {
+        keys[k] = raw;
+      }
     }
 
     LOGGER.debug(`Executing READ on ${resAnno.target} with keys`, keys);
@@ -533,7 +559,7 @@ function registerCreateTool(
     }
 
     // Build data object from provided args, limited to known properties
-    // Normalize payload: prefer *_ID for associations and coerce numeric strings
+    // Normalize payload: prefer *_ID for associations and check CDS types
     const data: Record<string, unknown> = {};
     for (const [propName, cdsType] of resAnno.properties.entries()) {
       const isAssociation = String(cdsType)
@@ -543,15 +569,32 @@ function registerCreateTool(
         const fkName = `${propName}_ID`;
         if (args[fkName] !== undefined) {
           const val = (args as any)[fkName];
-          data[fkName] =
-            typeof val === "string" && /^\d+$/.test(val) ? Number(val) : val;
+          // Get the CDS type for the foreign key field
+          const fkType = resAnno.properties.get(fkName);
+          if (
+            fkType &&
+            isNumericCdsType(fkType) &&
+            typeof val === "string" &&
+            /^\d+$/.test(val)
+          ) {
+            data[fkName] = Number(val);
+          } else {
+            data[fkName] = val;
+          }
         }
         continue;
       }
       if (args[propName] !== undefined) {
         const val = (args as any)[propName];
-        data[propName] =
-          typeof val === "string" && /^\d+$/.test(val) ? Number(val) : val;
+        if (
+          isNumericCdsType(cdsType) &&
+          typeof val === "string" &&
+          /^\d+$/.test(val)
+        ) {
+          data[propName] = Number(val);
+        } else {
+          data[propName] = val;
+        }
       }
     }
 
@@ -661,7 +704,7 @@ function registerUpdateTool(
       keys[k] = args[k];
     }
 
-    // Normalize updates: prefer *_ID for associations and coerce numeric strings
+    // Normalize updates: prefer *_ID for associations and check CDS types
     const updates: Record<string, unknown> = {};
     for (const [propName, cdsType] of resAnno.properties.entries()) {
       if (resAnno.resourceKeys.has(propName)) continue;
@@ -672,15 +715,32 @@ function registerUpdateTool(
         const fkName = `${propName}_ID`;
         if (args[fkName] !== undefined) {
           const val = (args as any)[fkName];
-          updates[fkName] =
-            typeof val === "string" && /^\d+$/.test(val) ? Number(val) : val;
+          // Get the CDS type for the foreign key field
+          const fkType = resAnno.properties.get(fkName);
+          if (
+            fkType &&
+            isNumericCdsType(fkType) &&
+            typeof val === "string" &&
+            /^\d+$/.test(val)
+          ) {
+            updates[fkName] = Number(val);
+          } else {
+            updates[fkName] = val;
+          }
         }
         continue;
       }
       if (args[propName] !== undefined) {
         const val = (args as any)[propName];
-        updates[propName] =
-          typeof val === "string" && /^\d+$/.test(val) ? Number(val) : val;
+        if (
+          isNumericCdsType(cdsType) &&
+          typeof val === "string" &&
+          /^\d+$/.test(val)
+        ) {
+          updates[propName] = Number(val);
+        } else {
+          updates[propName] = val;
+        }
       }
     }
     if (Object.keys(updates).length === 0) {
@@ -761,7 +821,7 @@ function registerDeleteTool(
 
     // Extract keys - similar to get/update handlers
     const keys: Record<string, unknown> = {};
-    for (const [k] of resAnno.resourceKeys.entries()) {
+    for (const [k, cdsType] of resAnno.resourceKeys.entries()) {
       let provided = (args as any)[k];
       if (provided === undefined) {
         // Case-insensitive key matching (like in get handler)
@@ -774,10 +834,17 @@ function registerDeleteTool(
         LOGGER.warn(`Delete tool missing required key`, { key: k, toolName });
         return toolError("MISSING_KEY", `Missing key '${k}'`);
       }
-      // Coerce numeric strings (like in get handler)
+      // Only convert to number if the CDS type is numeric
       const raw = provided;
-      keys[k] =
-        typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : raw;
+      if (
+        isNumericCdsType(cdsType) &&
+        typeof raw === "string" &&
+        /^\d+$/.test(raw)
+      ) {
+        keys[k] = Number(raw);
+      } else {
+        keys[k] = raw;
+      }
     }
 
     LOGGER.debug(`Executing DELETE on ${resAnno.target} with keys`, keys);
