@@ -5,7 +5,7 @@
     "commitMessage": "chore: release v${version}"
   },
   "npm": {
-    "skipChecks": true, 
+    "skipChecks": true,
     "publish": true
   },
   "github": {
