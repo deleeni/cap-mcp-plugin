@@ -95,19 +95,32 @@ const ODATA_TO_CDS_OPERATORS = new Map<string, string>([
 
 /**
  * Checks if a CDS type is numeric.
+ * Handles both simple format (e.g., "Integer") and namespaced format (e.g., "cds.Integer").
  * @param cdsType - The CDS type string
  * @returns true if the type is numeric, false otherwise
  */
 function isNumericCdsType(cdsType: string): boolean {
   const cdsTypeStr = String(cdsType).toLowerCase();
-  return (
-    cdsTypeStr.includes("integer") ||
-    cdsTypeStr.includes("int16") ||
-    cdsTypeStr.includes("int32") ||
-    cdsTypeStr.includes("int64") ||
-    cdsTypeStr.includes("decimal") ||
-    cdsTypeStr.includes("double") ||
-    cdsTypeStr.includes("number")
+  // Match exact type names with word boundaries to avoid false positives
+  // Support both "Integer" and "cds.Integer" formats
+  const numericTypes = [
+    "integer",
+    "int16",
+    "int32",
+    "int64",
+    "decimal",
+    "double",
+    "number",
+  ];
+
+  // Check if the type matches any numeric type (exact match or after "cds.")
+  return numericTypes.some(
+    (numType) =>
+      cdsTypeStr === numType ||
+      cdsTypeStr === `cds.${numType}` ||
+      // Also handle UInt types
+      cdsTypeStr === `u${numType}` ||
+      cdsTypeStr === `cds.u${numType}`,
   );
 }
 
